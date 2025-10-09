@@ -1512,6 +1512,25 @@ export class Ampli {
     return this.track(new OpenedConnectLedgerFlow(properties), options);
   }
 
+    /**
+   * opened connect step-to-sign flow
+   *
+   * [View in Tracking Plan](https://data.amplitude.com/mystenlabs/Sui%20Wallet/events/main/latest/opened%20connect%20ledger%20flow)
+   *
+   * When users open the "Connect Ledger Wallet" flow.
+   *
+   * Owner: Jon Shek
+   *
+   * @param properties The event's properties (e.g. sourceFlow)
+   * @param options Amplitude event options.
+   */
+    openedConnectStepToSignFlow(
+      properties: OpenedConnectLedgerFlowProperties,
+      options?: EventOptions,
+    ) {
+      return this.track(new OpenedConnectLedgerFlow(properties), options);
+    }
+
   /**
    * opened wallet extension
    *

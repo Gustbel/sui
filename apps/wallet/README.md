@@ -18,6 +18,14 @@ $ pnpm install
 
 To build the extension and watch for changes run:
 
+#### Tested by Gus
+
+```
+pnpm build:dev --watch
+```
+
+#### Original
+
 ```
 pnpm wallet dev
 ```
