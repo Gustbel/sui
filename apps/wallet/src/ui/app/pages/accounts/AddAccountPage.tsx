@@ -226,6 +226,27 @@ export function AddAccountPage() {
 									st.buf = [];
 									st.need = null;
 									st.next = 0;
+
+									// Accondicionamos data
+									// extraemos publicKey y obtenemos address
+
+									// TODO
+
+									// Con los datos creamos la cuenta
+									const hardcodedAccount = {
+										address: '0x0000000000000000000000000000000000000000000000000000000000000002',
+										derivationPath: "m/44'/784'/0'/0'/0'",
+										publicKey: 's8lwY5sPtHKMnL+45E6UvHqUgnGvK4xGlPz5okOEjZ0=',
+									};
+									setAccountsFormValues({
+										type: 'ledger',
+										accounts: [hardcodedAccount],
+									});
+									navigate(
+										`/accounts/protect-account?${new URLSearchParams({
+											accountType: 'ledger',
+										}).toString()}`,
+									);
 								}
 							});
 
