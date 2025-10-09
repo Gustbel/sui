@@ -11,6 +11,7 @@ import {
 import { ampli } from '_src/shared/analytics/ampli';
 import { CreateStepToSignAccount } from '_src/step-to-sign/CreateStsAccount';
 import { LedgerLogo17 as LedgerLogo } from '@mysten/icons';
+import { Ed25519PublicKey } from '@mysten/sui/keypairs/ed25519';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -229,14 +230,54 @@ export function AddAccountPage() {
 
 									// Accondicionamos data
 									// extraemos publicKey y obtenemos address
+									const publicKey = new Uint8Array([
+										48,
+										75,
+										122,
+										120,
+										200,
+										10,
+										134,
+										230,
+										22,
+										181, // ejemplo
+										9,
+										230,
+										245,
+										109,
+										34,
+										111,
+										78,
+										5,
+										98,
+										55,
+										243,
+										102,
+										87,
+										89,
+										233,
+										166,
+										191,
+										12,
+										56,
+										255,
+										244,
+										2,
+									]);
+									const pubKey = new Ed25519PublicKey(publicKey);
+									const sts_pubKey_base64 = Buffer.from(pubKey.toBase64()).toString();
+									const sts_address = pubKey.toSuiAddress();
 
+									console.log('Public Key (base64):');
+									console.log(sts_pubKey_base64.toString());
+									console.log(sts_address);
 									// TODO
 
 									// Con los datos creamos la cuenta
 									const hardcodedAccount = {
-										address: '0x0000000000000000000000000000000000000000000000000000000000000002',
+										address: sts_address,
 										derivationPath: "m/44'/784'/0'/0'/0'",
-										publicKey: 's8lwY5sPtHKMnL+45E6UvHqUgnGvK4xGlPz5okOEjZ0=',
+										publicKey: sts_pubKey_base64,
 									};
 									setAccountsFormValues({
 										type: 'ledger',
