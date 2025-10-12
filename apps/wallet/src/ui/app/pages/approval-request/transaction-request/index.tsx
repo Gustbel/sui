@@ -14,6 +14,7 @@ import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
 import { TransactionSummary } from '_src/ui/app/shared/transaction-summary';
 import { useTransactionSummary } from '@mysten/core';
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { toBase64 } from '@mysten/sui/utils';
 import { useMemo, useState } from 'react';
@@ -87,7 +88,13 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 						const transactionBlockBytesBase64 = toBase64(transactionBlockBytes);
 
 						// TODO: Add your custom signature logic here.
-						const mySignature = 'YOUR_BASE64_SIGNATURE'; // Replace with your signature
+
+						const secretKey = 'suiprivkey1....';
+						const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+						const signRes = await keypair.signTransaction(transactionBlockBytes);
+						const signBase64 = signRes.signature;
+
+						const mySignature = signBase64;
 
 						await dispatch(
 							respondToTransactionRequest({
