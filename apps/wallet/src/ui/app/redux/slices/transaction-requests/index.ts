@@ -35,12 +35,14 @@ export const respondToTransactionRequest = createAsyncThunk<
 		approved: boolean;
 		signer: WalletSigner;
 		clientIdentifier?: string;
+		signature?: string;
+		transactionBlockBytes?: string;
 	},
 	AppThunkConfig
 >(
 	'respond-to-transaction-request',
 	async (
-		{ txRequestID, approved, signer, clientIdentifier },
+		{ txRequestID, approved, signer, clientIdentifier, signature, transactionBlockBytes },
 		{ extra: { background }, getState },
 	) => {
 		const state = getState();
@@ -61,24 +63,37 @@ export const respondToTransactionRequest = createAsyncThunk<
 						clientIdentifier,
 					);
 				} else if (txRequest.tx.type === 'transaction') {
-					const tx = Transaction.from(txRequest.tx.data);
-					if (txRequest.tx.justSign) {
-						// Just a signing request, do not submit
-						txSigned = await signer.signTransactionBlock(
-							{
-								transactionBlock: tx,
-							},
-							clientIdentifier,
-						);
+					if (signature && transactionBlockBytes) {
+						txResult = await signer.client.executeTransactionBlock({
+							transactionBlock: fromBase64(transactionBlockBytes),
+							signature: signature,
+							options: txRequest.tx.options,
+							requestType: txRequest.tx.requestType,
+						});
+						txSigned = {
+							transactionBlockBytes,
+							signature,
+						};
 					} else {
-						txResult = await signer.signAndExecuteTransactionBlock(
-							{
-								transactionBlock: tx,
-								options: txRequest.tx.options,
-								requestType: txRequest.tx.requestType,
-							},
-							clientIdentifier,
-						);
+						const tx = Transaction.from(txRequest.tx.data);
+						if (txRequest.tx.justSign) {
+							// Just a signing request, do not submit
+							txSigned = await signer.signTransactionBlock(
+								{
+									transactionBlock: tx,
+								},
+								clientIdentifier,
+							);
+						} else {
+							txResult = await signer.signAndExecuteTransactionBlock(
+								{
+									transactionBlock: tx,
+									options: txRequest.tx.options,
+									requestType: txRequest.tx.requestType,
+								},
+								clientIdentifier,
+							);
+						}
 					}
 				} else {
 					throw new Error(

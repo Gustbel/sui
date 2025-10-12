@@ -15,6 +15,7 @@ import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMai
 import { TransactionSummary } from '_src/ui/app/shared/transaction-summary';
 import { useTransactionSummary } from '@mysten/core';
 import { Transaction } from '@mysten/sui/transactions';
+import { toBase64 } from '@mysten/sui/utils';
 import { useMemo, useState } from 'react';
 
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
@@ -70,35 +71,35 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 				approveTitle="Send to Step-to-Sign"
 				rejectTitle="Reject"
 				onSubmit={async (approved: boolean) => {
+					if (isPending) return;
+
 					if (approved) {
-						// TODO: Add your custom signature logic here.
-						// The original logic is commented out below.
-						/*
-						if (isPending) return;
 						if (isError) {
 							setConfirmationVisible(true);
 							return;
 						}
+
+						const tx = Transaction.from(txRequest.tx.data);
+						if (addressForTransaction) {
+							tx.setSenderIfNotSet(addressForTransaction);
+						}
+						const transactionBlockBytes = await tx.build({ client: signer.client });
+						const transactionBlockBytesBase64 = toBase64(transactionBlockBytes);
+
+						// TODO: Add your custom signature logic here.
+						const mySignature = 'YOUR_BASE64_SIGNATURE'; // Replace with your signature
+
 						await dispatch(
 							respondToTransactionRequest({
 								approved,
 								txRequestID: txRequest.id,
 								signer,
 								clientIdentifier,
+								signature: mySignature,
+								transactionBlockBytes: transactionBlockBytesBase64,
 							}),
 						);
-						if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
-							ampli.respondedToTransactionRequest({
-								applicationUrl: txRequest.origin,
-								approvedTransaction: approved,
-								receivedFailureWarning: false,
-								type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
-							});
-						}
-						*/
 					} else {
-						// Reject logic is kept
-						if (isPending) return;
 						await dispatch(
 							respondToTransactionRequest({
 								approved,
@@ -107,14 +108,15 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 								clientIdentifier,
 							}),
 						);
-						if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
-							ampli.respondedToTransactionRequest({
-								applicationUrl: txRequest.origin,
-								approvedTransaction: approved,
-								receivedFailureWarning: false,
-								type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
-							});
-						}
+					}
+
+					if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
+						ampli.respondedToTransactionRequest({
+							applicationUrl: txRequest.origin,
+							approvedTransaction: approved,
+							receivedFailureWarning: false,
+							type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
+						});
 					}
 				}}
 				address={addressForTransaction}
