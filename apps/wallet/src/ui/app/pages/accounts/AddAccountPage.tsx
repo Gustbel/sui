@@ -146,12 +146,16 @@ export function AddAccountPage() {
 						text="Set up Step-to-Sign"
 						before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
 						onClick={async () => {
-							const res = await connectAndGetData();
+							const getPubKeyFrame = new Uint8Array([
+								0x05, 0x00, 0x00, 0x05, 0xe0, 0x04, 0x00, 0x00, 0x00,
+							]);
 
-							console.log('Public Key Raw:', res.pubKeyRaw);
+							const res = await connectAndGetData(getPubKeyFrame);
+
+							console.log('Public Key Raw:', res.dataRaw);
 							// Accondicionamos data
 							// extraemos publicKey y obtenemos address
-							const publicKey_raw = res.pubKeyRaw;
+							const publicKey_raw = res.dataRaw;
 
 							const pubKey = new Ed25519PublicKey(publicKey_raw);
 							const sts_pubKey_base64 = Buffer.from(pubKey.toBase64()).toString();

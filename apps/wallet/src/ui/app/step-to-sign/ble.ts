@@ -1,5 +1,5 @@
-export async function connectAndGetData(): Promise<{
-	pubKeyRaw: Uint8Array;
+export async function connectAndGetData(getFrame: Uint8Array): Promise<{
+	dataRaw: Uint8Array;
 	sw: number | null;
 }> {
 	return new Promise(async (resolve, reject) => {
@@ -71,7 +71,7 @@ export async function connectAndGetData(): Promise<{
 					// (opcional) server.disconnect();
 
 					resolve({
-						pubKeyRaw: data,
+						dataRaw: data,
 						sw: sw,
 					});
 				}
@@ -80,8 +80,7 @@ export async function connectAndGetData(): Promise<{
 			await notifyChar.startNotifications();
 			notifyChar.addEventListener('characteristicvaluechanged', onNotify);
 
-			const getPubKeyFrame = new Uint8Array([0x05, 0x00, 0x00, 0x05, 0xe0, 0x04, 0x00, 0x00, 0x00]);
-			await writeChar.writeValue(getPubKeyFrame);
+			await writeChar.writeValue(getFrame);
 		} catch (err) {
 			reject(err);
 		}
