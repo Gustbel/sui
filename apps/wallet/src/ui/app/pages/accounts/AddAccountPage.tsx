@@ -217,10 +217,6 @@ export function AddAccountPage() {
 										data = full.subarray(0, full.length - 2);
 									}
 
-									const segments: Uint8Array[] = [data]; // datos crudos ya completos
-									console.log(`Tag ${tag.toString(16)} completo:`);
-									console.log('Data segments:', segments);
-									console.log('Data:', data);
 									if (sw !== null) console.log('SW:', '0x' + sw.toString(16).padStart(4, '0'));
 
 									// Resetear estado para este tag
@@ -230,47 +226,14 @@ export function AddAccountPage() {
 
 									// Accondicionamos data
 									// extraemos publicKey y obtenemos address
-									const publicKey = new Uint8Array([
-										48,
-										75,
-										122,
-										120,
-										200,
-										10,
-										134,
-										230,
-										22,
-										181, // ejemplo
-										9,
-										230,
-										245,
-										109,
-										34,
-										111,
-										78,
-										5,
-										98,
-										55,
-										243,
-										102,
-										87,
-										89,
-										233,
-										166,
-										191,
-										12,
-										56,
-										255,
-										244,
-										2,
-									]);
-									const pubKey = new Ed25519PublicKey(publicKey);
+									const publicKey_raw = data;
+
+									const pubKey = new Ed25519PublicKey(publicKey_raw);
 									const sts_pubKey_base64 = Buffer.from(pubKey.toBase64()).toString();
 									const sts_address = pubKey.toSuiAddress();
 
-									console.log('Public Key (base64):');
-									console.log(sts_pubKey_base64.toString());
-									console.log(sts_address);
+									console.log(`Public Key (base64): ${sts_pubKey_base64.toString()}`);
+									console.log(`Address: ${sts_address}`);
 									// TODO
 
 									// Con los datos creamos la cuenta
