@@ -67,29 +67,54 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 			<UserApproveContainer
 				origin={txRequest.origin}
 				originFavIcon={txRequest.originFavIcon}
-				approveTitle="Approve"
+				approveTitle="Send to Step-to-Sign"
 				rejectTitle="Reject"
 				onSubmit={async (approved: boolean) => {
-					if (isPending) return;
-					if (approved && isError) {
-						setConfirmationVisible(true);
-						return;
-					}
-					await dispatch(
-						respondToTransactionRequest({
-							approved,
-							txRequestID: txRequest.id,
-							signer,
-							clientIdentifier,
-						}),
-					);
-					if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
-						ampli.respondedToTransactionRequest({
-							applicationUrl: txRequest.origin,
-							approvedTransaction: approved,
-							receivedFailureWarning: false,
-							type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
-						});
+					if (approved) {
+						// TODO: Add your custom signature logic here.
+						// The original logic is commented out below.
+						/*
+						if (isPending) return;
+						if (isError) {
+							setConfirmationVisible(true);
+							return;
+						}
+						await dispatch(
+							respondToTransactionRequest({
+								approved,
+								txRequestID: txRequest.id,
+								signer,
+								clientIdentifier,
+							}),
+						);
+						if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
+							ampli.respondedToTransactionRequest({
+								applicationUrl: txRequest.origin,
+								approvedTransaction: approved,
+								receivedFailureWarning: false,
+								type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
+							});
+						}
+						*/
+					} else {
+						// Reject logic is kept
+						if (isPending) return;
+						await dispatch(
+							respondToTransactionRequest({
+								approved,
+								txRequestID: txRequest.id,
+								signer,
+								clientIdentifier,
+							}),
+						);
+						if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
+							ampli.respondedToTransactionRequest({
+								applicationUrl: txRequest.origin,
+								approvedTransaction: approved,
+								receivedFailureWarning: false,
+								type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
+							});
+						}
 					}
 				}}
 				address={addressForTransaction}
