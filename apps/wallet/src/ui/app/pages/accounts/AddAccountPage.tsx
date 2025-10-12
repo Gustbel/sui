@@ -25,7 +25,7 @@ import { useAppSelector } from '../../hooks';
 import { useCountAccountsByType } from '../../hooks/useCountAccountByType';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
 import { AppType } from '../../redux/slices/app/AppType';
-import { connectAndGetData } from '../../step-to-sign/ble';
+import { connectSts, getDataSts } from '../../step-to-sign/ble';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
 	const currentURL = new URL(window.location.href);
@@ -146,11 +146,13 @@ export function AddAccountPage() {
 						text="Set up Step-to-Sign"
 						before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
 						onClick={async () => {
+							await connectSts();
+
 							const getPubKeyFrame = new Uint8Array([
 								0x05, 0x00, 0x00, 0x05, 0xe0, 0x04, 0x00, 0x00, 0x00,
 							]);
 
-							const res = await connectAndGetData(getPubKeyFrame);
+							const res = await getDataSts(getPubKeyFrame);
 
 							console.log('Public Key Raw:', res.dataRaw);
 							// Accondicionamos data

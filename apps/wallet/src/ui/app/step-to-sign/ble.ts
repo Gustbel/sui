@@ -1,23 +1,48 @@
-export async function connectAndGetData(getFrame: Uint8Array): Promise<{
-	dataRaw: Uint8Array;
-	sw: number | null;
-}> {
+// ---- cache simple a nivel de módulo ----
+let bleDevice: BluetoothDevice | null = null;
+let bleServer: BluetoothRemoteGATTServer | null = null;
+let writeChar: BluetoothRemoteGATTCharacteristic | null = null;
+let notifyChar: BluetoothRemoteGATTCharacteristic | null = null;
+
+// Conecta una sola vez y descubre characteristics (sin crear listener)
+export async function connectSts() {
+	// si ya está todo y sigue conectado, no hacemos nada
+	if (writeChar && notifyChar && bleServer?.connected) return;
+
+	if (!bleDevice) {
+		bleDevice = await navigator.bluetooth.requestDevice({
+			filters: [{ namePrefix: 'Step-to-Sign' }],
+			optionalServices: ['13d63400-2c97-0004-0000-4c6564676572'],
+		});
+
+		// si se desconecta, limpiamos cache
+		bleDevice.addEventListener('gattserverdisconnected', () => {
+			bleServer = null;
+			writeChar = null;
+			notifyChar = null;
+		});
+	}
+
+	if (!bleServer || !bleServer.connected) {
+		bleServer = await bleDevice.gatt!.connect();
+	}
+
+	const service = await bleServer.getPrimaryService('13d63400-2c97-0004-0000-4c6564676572');
+	writeChar = await service.getCharacteristic('13d63400-2c97-0004-0002-4c6564676572');
+	notifyChar = await service.getCharacteristic('13d63400-2c97-0004-0001-4c6564676572');
+}
+
+// Envia un frame y espera la respuesta usando TU listener (definido acá mismo)
+export async function getDataSts(
+	getFrame: Uint8Array,
+): Promise<{ dataRaw: Uint8Array; sw: number | null }> {
+	await connectSts(); // asegura conexión/handles
+
+	// estado por tag (local a la llamada)
+	const state: Record<number, { need: number | null; buf: Uint8Array[]; next: number }> = {};
+
 	return new Promise(async (resolve, reject) => {
 		try {
-			// estado por tag (simple y local a la función)
-			const state: Record<number, { need: number | null; buf: Uint8Array[]; next: number }> = {};
-
-			const device = await navigator.bluetooth.requestDevice({
-				filters: [{ namePrefix: 'Step-to-Sign' }],
-				optionalServices: ['13d63400-2c97-0004-0000-4c6564676572'],
-			});
-
-			const server = await device.gatt!.connect();
-			const service = await server.getPrimaryService('13d63400-2c97-0004-0000-4c6564676572');
-
-			const writeChar = await service.getCharacteristic('13d63400-2c97-0004-0002-4c6564676572');
-			const notifyChar = await service.getCharacteristic('13d63400-2c97-0004-0001-4c6564676572');
-
 			const onNotify = (ev: Event) => {
 				const v = (ev.target as BluetoothRemoteGATTCharacteristic).value!;
 				const d = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
@@ -61,26 +86,23 @@ export async function connectAndGetData(getFrame: Uint8Array): Promise<{
 
 					if (sw !== null) console.log('SW:', '0x' + sw.toString(16).padStart(4, '0'));
 
+					// limpiar estado y listener SOLO para esta llamada
 					st.buf = [];
 					st.need = null;
 					st.next = 0;
 
-					// limpiar y resolver
-					notifyChar.removeEventListener('characteristicvaluechanged', onNotify);
-					// (opcional) notifyChar.stopNotifications().catch(()=>{});
-					// (opcional) server.disconnect();
+					notifyChar!.removeEventListener('characteristicvaluechanged', onNotify);
 
-					resolve({
-						dataRaw: data,
-						sw: sw,
-					});
+					resolve({ dataRaw: data, sw });
 				}
 			};
 
-			await notifyChar.startNotifications();
-			notifyChar.addEventListener('characteristicvaluechanged', onNotify);
+			// arrancamos notificaciones y listener en cada getData()
+			await notifyChar!.startNotifications();
+			notifyChar!.addEventListener('characteristicvaluechanged', onNotify);
 
-			await writeChar.writeValue(getFrame);
+			// enviamos el frame
+			await writeChar!.writeValue(getFrame);
 		} catch (err) {
 			reject(err);
 		}
