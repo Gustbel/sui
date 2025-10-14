@@ -148,11 +148,9 @@ export function AddAccountPage() {
 						onClick={async () => {
 							await connectSts();
 
-							const getPubKeyFrame = new Uint8Array([
-								0x05, 0x00, 0x00, 0x05, 0xe0, 0x04, 0x00, 0x00, 0x00,
-							]);
+							const apduPubKey = new Uint8Array([0xe0, 0x04, 0x00, 0x00, 0x00]);
 
-							const res = await getDataSts(getPubKeyFrame);
+							const res = await getDataSts(apduPubKey);
 
 							console.log('Public Key Raw:', res.dataRaw);
 							// Accondicionamos data

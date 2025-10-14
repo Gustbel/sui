@@ -86,14 +86,17 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 							tx.setSenderIfNotSet(addressForTransaction);
 						}
 						const transactionBlockBytes = await tx.build({ client: signer.client });
+						console.log(`Transaction Block (bytes): ${transactionBlockBytes}`);
+
+						console.log(`Transaction Block lenght (bytes): ${transactionBlockBytes.length} bytes`);
 						const transactionBlockBytesBase64 = toBase64(transactionBlockBytes);
 
-						const sendMessageBytesFrame = new Uint8Array([
-							...[0x05, 0x00, 0x00, 0x05, 0xe0, 0x67, 0x00, 0x00, 0x00],
+						const apduMessageBytes = new Uint8Array([
+							...[0xe0, 0x67, 0x00, 0x00, 0x00],
 							...transactionBlockBytes,
 						]);
 
-						let resSendMsg = await getDataSts(sendMessageBytesFrame);
+						let resSendMsg = await getDataSts(apduMessageBytes);
 						console.log(`Sw: ${resSendMsg.sw}`);
 
 						// IF res.sw is not 0x9000, there was an error
@@ -101,17 +104,15 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 						//	throw new Error(`Step-to-Sign error: ${res.sw}`);
 						//}
 
-						const getSignatureFrame = new Uint8Array([
-							0x05, 0x00, 0x00, 0x05, 0xe0, 0x85, 0x00, 0x00, 0x00,
-						]);
+						const apduSignature = new Uint8Array([0xe0, 0x85, 0x00, 0x00, 0x00]);
 
-						const resSign = await getDataSts(getSignatureFrame);
+						const resSign = await getDataSts(apduSignature);
 						const signatureSts = resSign.dataRaw;
 						// convert signature to base64
 						const signatureStsBase64 = Buffer.from(signatureSts).toString('base64');
 
 						/*
-						Generating Signature locally - (for debugging purposes)
+						//Generating Signature locally - (for debugging purposes)
 						const secretKey ='suiprivkey1...';
 						const keypair = Ed25519Keypair.fromSecretKey(secretKey);
 						const signRes = await keypair.signTransaction(transactionBlockBytes);

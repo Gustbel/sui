@@ -32,7 +32,40 @@ export async function connectSts() {
 	notifyChar = await service.getCharacteristic('13d63400-2c97-0004-0001-4c6564676572');
 }
 
-// Envia un frame y espera la respuesta usando TU listener (definido acá mismo)
+async function writeChunked(
+	chr: BluetoothRemoteGATTCharacteristic,
+	payload: Uint8Array,
+	tag = 0x05,
+	maxBytesPerWrite = 180, // seguro para MTU ~185
+	interChunkDelayMs = 8,
+) {
+	const header = 4;
+	const total = payload.length;
+	const maxChunk = Math.max(1, maxBytesPerWrite - header);
+
+	let seq = 0;
+	for (let off = 0; off < total; ) {
+		const n = Math.min(maxChunk, total - off);
+		const frame = new Uint8Array(header + n);
+		frame[0] = tag;
+		frame[1] = seq & 0xff;
+		if (seq === 0) {
+			frame[2] = (total >> 8) & 0xff;
+			frame[3] = total & 0xff;
+		} else {
+			frame[2] = 0;
+			frame[3] = 0; // tu ESP32 solo usa len en seq=0
+		}
+		frame.set(payload.subarray(off, off + n), 4);
+
+		await chr.writeValue(frame);
+		off += n;
+		seq++;
+		if (interChunkDelayMs) await new Promise((r) => setTimeout(r, interChunkDelayMs));
+	}
+}
+
+// Envia un frame (posiblemente chunked) y espera la respuesta
 export async function getDataSts(
 	getFrame: Uint8Array,
 ): Promise<{ dataRaw: Uint8Array; sw: number | null }> {
@@ -101,8 +134,8 @@ export async function getDataSts(
 			await notifyChar!.startNotifications();
 			notifyChar!.addEventListener('characteristicvaluechanged', onNotify);
 
-			// enviamos el frame
-			await writeChar!.writeValue(getFrame);
+			// Enviamos mensajes en chunks de 180 bytes (MTU ~185)
+			await writeChunked(writeChar!, getFrame, /*tag=*/ 0x05, /*max=*/ 180, /*delay=*/ 8);
 		} catch (err) {
 			reject(err);
 		}
