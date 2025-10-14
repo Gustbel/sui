@@ -13,6 +13,7 @@ import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
 import { TransactionSummary } from '_src/ui/app/shared/transaction-summary';
+import { getDataSts } from '_src/ui/app/step-to-sign/ble';
 import { useTransactionSummary } from '@mysten/core';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
@@ -87,14 +88,37 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 						const transactionBlockBytes = await tx.build({ client: signer.client });
 						const transactionBlockBytesBase64 = toBase64(transactionBlockBytes);
 
-						// TODO: Add your custom signature logic here.
+						const sendMessageBytesFrame = new Uint8Array([
+							...[0x05, 0x00, 0x00, 0x05, 0xe0, 0x67, 0x00, 0x00, 0x00],
+							...transactionBlockBytes,
+						]);
 
-						const secretKey = 'suiprivkey1....';
+						let resSendMsg = await getDataSts(sendMessageBytesFrame);
+						console.log(`Sw: ${resSendMsg.sw}`);
+
+						// IF res.sw is not 0x9000, there was an error
+						//if (res.sw !== 0x9000) {
+						//	throw new Error(`Step-to-Sign error: ${res.sw}`);
+						//}
+
+						const getSignatureFrame = new Uint8Array([
+							0x05, 0x00, 0x00, 0x05, 0xe0, 0x85, 0x00, 0x00, 0x00,
+						]);
+
+						const resSign = await getDataSts(getSignatureFrame);
+						const signatureSts = resSign.dataRaw;
+						// convert signature to base64
+						const signatureStsBase64 = Buffer.from(signatureSts).toString('base64');
+
+						/*
+						Generating Signature locally - (for debugging purposes)
+						const secretKey ='suiprivkey1...';
 						const keypair = Ed25519Keypair.fromSecretKey(secretKey);
 						const signRes = await keypair.signTransaction(transactionBlockBytes);
 						const signBase64 = signRes.signature;
+						*/
 
-						const mySignature = signBase64;
+						const mySignature = signatureStsBase64;
 
 						await dispatch(
 							respondToTransactionRequest({
