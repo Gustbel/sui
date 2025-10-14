@@ -7,9 +7,9 @@ import Browser from 'webextension-polyfill';
 const POPUP_WIDTH = 360;
 const POPUP_HEIGHT = 680;
 
-const windowRemovedStream = fromEventPattern<number>(
-	(handler) => Browser.windows.onRemoved.addListener(handler),
-	(handler) => Browser.windows.onRemoved.removeListener(handler),
+const tabRemovedStream = fromEventPattern<number>(
+	(handler) => Browser.tabs.onRemoved.addListener(handler),
+	(handler) => Browser.tabs.onRemoved.removeListener(handler),
 ).pipe(share());
 
 // This is arbitrary across different operating systems, and unfortunately
@@ -25,27 +25,21 @@ export class Window {
 	}
 
 	public async show() {
-		const { width = 0, left = 0, top = 0 } = await Browser.windows.getLastFocused();
-		const w = await Browser.windows.create({
+		const w = await Browser.tabs.create({
 			url: this._url,
-			focused: true,
-			width: POPUP_WIDTH,
-			height: windowHeightWithFrame,
-			type: 'popup',
-			top: top,
-			left: Math.floor(left + width - 450),
+			active: true,
 		});
 		this._id = typeof w.id === 'undefined' ? null : w.id;
-		return windowRemovedStream.pipe(
+		return tabRemovedStream.pipe(
 			takeWhile(() => this._id !== null),
-			filter((aWindowID) => aWindowID === this._id),
+			filter((aTabID) => aTabID === this._id),
 			take(1),
 		);
 	}
 
 	public async close() {
 		if (this._id !== null) {
-			await Browser.windows.remove(this._id);
+			await Browser.tabs.remove(this._id);
 		}
 	}
 

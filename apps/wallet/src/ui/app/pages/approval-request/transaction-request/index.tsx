@@ -13,8 +13,11 @@ import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
 import { TransactionSummary } from '_src/ui/app/shared/transaction-summary';
+import { getDataSts } from '_src/ui/app/step-to-sign/ble';
 import { useTransactionSummary } from '@mysten/core';
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
+import { toBase64 } from '@mysten/sui/utils';
 import { useMemo, useState } from 'react';
 
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
@@ -67,22 +70,78 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 			<UserApproveContainer
 				origin={txRequest.origin}
 				originFavIcon={txRequest.originFavIcon}
-				approveTitle="Approve"
+				approveTitle="Send to Step-to-Sign"
 				rejectTitle="Reject"
 				onSubmit={async (approved: boolean) => {
 					if (isPending) return;
-					if (approved && isError) {
-						setConfirmationVisible(true);
-						return;
+
+					if (approved) {
+						if (isError) {
+							setConfirmationVisible(true);
+							return;
+						}
+
+						const tx = Transaction.from(txRequest.tx.data);
+						if (addressForTransaction) {
+							tx.setSenderIfNotSet(addressForTransaction);
+						}
+						const transactionBlockBytes = await tx.build({ client: signer.client });
+						console.log(`Transaction Block (bytes): ${transactionBlockBytes}`);
+
+						console.log(`Transaction Block lenght (bytes): ${transactionBlockBytes.length} bytes`);
+						const transactionBlockBytesBase64 = toBase64(transactionBlockBytes);
+
+						const apduMessageBytes = new Uint8Array([
+							...[0xe0, 0x67, 0x00, 0x00, 0x00],
+							...transactionBlockBytes,
+						]);
+
+						let resSendMsg = await getDataSts(apduMessageBytes);
+						console.log(`Sw: ${resSendMsg.sw}`);
+
+						// IF res.sw is not 0x9000, there was an error
+						//if (res.sw !== 0x9000) {
+						//	throw new Error(`Step-to-Sign error: ${res.sw}`);
+						//}
+
+						const apduSignature = new Uint8Array([0xe0, 0x85, 0x00, 0x00, 0x00]);
+
+						const resSign = await getDataSts(apduSignature);
+						const signatureSts = resSign.dataRaw;
+						// convert signature to base64
+						const signatureStsBase64 = Buffer.from(signatureSts).toString('base64');
+
+						/*
+						//Generating Signature locally - (for debugging purposes)
+						const secretKey ='suiprivkey1...';
+						const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+						const signRes = await keypair.signTransaction(transactionBlockBytes);
+						const signBase64 = signRes.signature;
+						*/
+
+						const mySignature = signatureStsBase64;
+
+						await dispatch(
+							respondToTransactionRequest({
+								approved,
+								txRequestID: txRequest.id,
+								signer,
+								clientIdentifier,
+								signature: mySignature,
+								transactionBlockBytes: transactionBlockBytesBase64,
+							}),
+						);
+					} else {
+						await dispatch(
+							respondToTransactionRequest({
+								approved,
+								txRequestID: txRequest.id,
+								signer,
+								clientIdentifier,
+							}),
+						);
 					}
-					await dispatch(
-						respondToTransactionRequest({
-							approved,
-							txRequestID: txRequest.id,
-							signer,
-							clientIdentifier,
-						}),
-					);
+
 					if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
 						ampli.respondedToTransactionRequest({
 							applicationUrl: txRequest.origin,
