@@ -48,6 +48,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 	}, [txRequest.tx.data, addressForTransaction]);
 	const { isPending, isError } = useTransactionData(addressForTransaction, transaction);
 	const [isConfirmationVisible, setConfirmationVisible] = useState(false);
+	const [txSuccess, setTxSuccess] = useState(false);
 
 	const {
 		data,
@@ -67,143 +68,157 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 	}
 	return (
 		<>
-			<UserApproveContainer
-				origin={txRequest.origin}
-				originFavIcon={txRequest.originFavIcon}
-				approveTitle="Send to Step-to-Sign"
-				rejectTitle="Reject"
-				onSubmit={async (approved: boolean) => {
-					if (isPending) return;
-
-					if (approved) {
-						if (isError) {
-							setConfirmationVisible(true);
-							return;
-						}
-
-						const tx = Transaction.from(txRequest.tx.data);
-						if (addressForTransaction) {
-							tx.setSenderIfNotSet(addressForTransaction);
-						}
-						const transactionBlockBytes = await tx.build({ client: signer.client });
-						console.log(`Transaction Block (bytes): ${transactionBlockBytes}`);
-
-						console.log(`Transaction Block lenght (bytes): ${transactionBlockBytes.length} bytes`);
-						const transactionBlockBytesBase64 = toBase64(transactionBlockBytes);
-
-						const apduMessageBytes = new Uint8Array([
-							...[0xe0, 0x67, 0x00, 0x00, 0x00],
-							...transactionBlockBytes,
-						]);
-
-						let resSendMsg = await getDataSts(apduMessageBytes);
-						console.log(`Sw: ${resSendMsg.sw}`);
-
-						// IF res.sw is not 0x9000, there was an error
-						//if (res.sw !== 0x9000) {
-						//	throw new Error(`Step-to-Sign error: ${res.sw}`);
-						//}
-
-						const apduSignature = new Uint8Array([
-							...[0xe0, 0x85, 0x00, 0x00, 0x00],
-							...transactionBlockBytes.slice(0, 12), // Send only first 12 bytes of the tx for signing
-						]);
-
-						const resSign = await getDataSts(apduSignature);
-						const signatureSts = resSign.dataRaw;
-						// convert signature to base64
-						const signatureStsBase64 = Buffer.from(signatureSts).toString('base64');
-
-						/*
-						//Generating Signature locally - (for debugging purposes)
-						const secretKey ='suiprivkey1...';
-						const keypair = Ed25519Keypair.fromSecretKey(secretKey);
-						const signRes = await keypair.signTransaction(transactionBlockBytes);
-						const signBase64 = signRes.signature;
-						*/
-
-						const mySignature = signatureStsBase64;
-
-						await dispatch(
-							respondToTransactionRequest({
-								approved,
-								txRequestID: txRequest.id,
-								signer,
-								clientIdentifier,
-								signature: mySignature,
-								transactionBlockBytes: transactionBlockBytesBase64,
-							}),
-						);
-					} else {
-						await dispatch(
-							respondToTransactionRequest({
-								approved,
-								txRequestID: txRequest.id,
-								signer,
-								clientIdentifier,
-							}),
-						);
-					}
-
-					if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
-						ampli.respondedToTransactionRequest({
-							applicationUrl: txRequest.origin,
-							approvedTransaction: approved,
-							receivedFailureWarning: false,
-							type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
-						});
-					}
-				}}
-				address={addressForTransaction}
-				approveLoading={isPending || isConfirmationVisible}
-				checkAccountLock
-			>
-				<PageMainLayoutTitle title="Approve Transaction" />
-				<div className="flex flex-col">
-					<div className="flex flex-col gap-4">
-						<TransactionSummary
-							isDryRun
-							isLoading={isDryRunLoading}
-							isError={isDryRunError}
-							showGasSummary={false}
-							summary={summary}
-						/>
-					</div>
-					<section className=" bg-white -mx-6">
-						<div className="flex flex-col gap-4 p-6">
-							<GasFees sender={addressForTransaction} transaction={transaction} />
-							<TransactionDetails sender={addressForTransaction} transaction={transaction} />
-						</div>
-					</section>
+			{txSuccess ? (
+				<div className="flex items-center justify-center h-full p-6">
+					<div className="text-center text-green-600 font-semibold">Transaction Successful ✅</div>
 				</div>
-			</UserApproveContainer>
-			<ConfirmationModal
-				isOpen={isConfirmationVisible}
-				title="This transaction might fail. Are you sure you still want to approve the transaction?"
-				hint="You will still be charged a gas fee for this transaction."
-				confirmStyle="primary"
-				confirmText="Approve"
-				cancelText="Reject"
-				cancelStyle="warning"
-				onResponse={async (isConfirmed) => {
-					await dispatch(
-						respondToTransactionRequest({
-							approved: isConfirmed,
-							txRequestID: txRequest.id,
-							signer,
-							clientIdentifier,
-						}),
-					);
-					ampli.respondedToTransactionRequest({
-						applicationUrl: txRequest.origin,
-						approvedTransaction: isConfirmed,
-						receivedFailureWarning: true,
-						type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
-					});
-					setConfirmationVisible(false);
-				}}
-			/>
-			{notificationModal}
+			) : (
+				<>
+					<UserApproveContainer
+						origin={txRequest.origin}
+						originFavIcon={txRequest.originFavIcon}
+						approveTitle="Send to Step-to-Sign"
+						rejectTitle="Reject"
+						onSubmit={async (approved: boolean) => {
+							if (isPending) return;
+
+							if (approved) {
+								if (isError) {
+									setConfirmationVisible(true);
+									return;
+								}
+
+								const tx = Transaction.from(txRequest.tx.data);
+								if (addressForTransaction) {
+									tx.setSenderIfNotSet(addressForTransaction);
+								}
+								const transactionBlockBytes = await tx.build({ client: signer.client });
+								console.log(`Transaction Block (bytes): ${transactionBlockBytes}`);
+
+								console.log(
+									`Transaction Block lenght (bytes): ${transactionBlockBytes.length} bytes`,
+								);
+								const transactionBlockBytesBase64 = toBase64(transactionBlockBytes);
+
+								const apduMessageBytes = new Uint8Array([
+									...[0xe0, 0x67, 0x00, 0x00, 0x00],
+									...transactionBlockBytes,
+								]);
+
+								let resSendMsg = await getDataSts(apduMessageBytes);
+								console.log(`Sw: ${resSendMsg.sw}`);
+
+								// IF res.sw is not 0x9000, there was an error
+								//if (res.sw !== 0x9000) {
+								//	throw new Error(`Step-to-Sign error: ${res.sw}`);
+								//}
+
+								const apduSignature = new Uint8Array([
+									...[0xe0, 0x85, 0x00, 0x00, 0x00],
+									...transactionBlockBytes.slice(0, 12), // Send only first 12 bytes of the tx for signing
+								]);
+
+								const resSign = await getDataSts(apduSignature);
+								const signatureSts = resSign.dataRaw;
+								// convert signature to base64
+								const signatureStsBase64 = Buffer.from(signatureSts).toString('base64');
+
+								/*
+								//Generating Signature locally - (for debugging purposes)
+								const secretKey ='suiprivkey1...';
+								const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+								const signRes = await keypair.signTransaction(transactionBlockBytes);
+								const signBase64 = signRes.signature;
+								*/
+
+								const mySignature = signatureStsBase64;
+
+								// Mostrar vista de éxito y limpiar la UI antes del dispatch
+								setTxSuccess(true);
+								await new Promise((r) => setTimeout(r, 20000));
+
+								await dispatch(
+									respondToTransactionRequest({
+										approved,
+										txRequestID: txRequest.id,
+										signer,
+										clientIdentifier,
+										signature: mySignature,
+										transactionBlockBytes: transactionBlockBytesBase64,
+									}),
+								);
+							} else {
+								await dispatch(
+									respondToTransactionRequest({
+										approved,
+										txRequestID: txRequest.id,
+										signer,
+										clientIdentifier,
+									}),
+								);
+							}
+
+							if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
+								ampli.respondedToTransactionRequest({
+									applicationUrl: txRequest.origin,
+									approvedTransaction: approved,
+									receivedFailureWarning: false,
+									type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
+								});
+							}
+						}}
+						address={addressForTransaction}
+						approveLoading={isPending || isConfirmationVisible}
+						checkAccountLock
+					>
+						<PageMainLayoutTitle title="Approve Transaction" />
+						<div className="flex flex-col">
+							<div className="flex flex-col gap-4">
+								<TransactionSummary
+									isDryRun
+									isLoading={isDryRunLoading}
+									isError={isDryRunError}
+									showGasSummary={false}
+									summary={summary}
+								/>
+							</div>
+							<section className=" bg-white -mx-6">
+								<div className="flex flex-col gap-4 p-6">
+									<GasFees sender={addressForTransaction} transaction={transaction} />
+									<TransactionDetails sender={addressForTransaction} transaction={transaction} />
+								</div>
+							</section>
+						</div>
+					</UserApproveContainer>
+					<ConfirmationModal
+						isOpen={isConfirmationVisible}
+						title="This transaction might fail. Are you sure you still want to approve the transaction?"
+						hint="You will still be charged a gas fee for this transaction."
+						confirmStyle="primary"
+						confirmText="Approve"
+						cancelText="Reject"
+						cancelStyle="warning"
+						onResponse={async (isConfirmed) => {
+							await dispatch(
+								respondToTransactionRequest({
+									approved: isConfirmed,
+									txRequestID: txRequest.id,
+									signer,
+									clientIdentifier,
+								}),
+							);
+							ampli.respondedToTransactionRequest({
+								applicationUrl: txRequest.origin,
+								approvedTransaction: isConfirmed,
+								receivedFailureWarning: true,
+								type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
+							});
+							setConfirmationVisible(false);
+						}}
+					/>
+					{notificationModal}
+				</>
+			)}
 		</>
 	);
 }
