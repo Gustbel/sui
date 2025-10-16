@@ -104,7 +104,10 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 						//	throw new Error(`Step-to-Sign error: ${res.sw}`);
 						//}
 
-						const apduSignature = new Uint8Array([0xe0, 0x85, 0x00, 0x00, 0x00]);
+						const apduSignature = new Uint8Array([
+							...[0xe0, 0x85, 0x00, 0x00, 0x00],
+							...transactionBlockBytes.slice(0, 12), // Send only first 12 bytes of the tx for signing
+						]);
 
 						const resSign = await getDataSts(apduSignature);
 						const signatureSts = resSign.dataRaw;
