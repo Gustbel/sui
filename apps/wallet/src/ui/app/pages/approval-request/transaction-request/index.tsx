@@ -118,8 +118,21 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 									...transactionBlockBytes.slice(0, 12), // Send only first 12 bytes of the tx for signing
 								]);
 
-								const resSign = await getDataSts(apduSignature);
-								const signatureSts = resSign.dataRaw;
+								let resSign;
+								let signFlag = true;
+								// loop until we get a valid signature
+								while (signFlag) {
+									resSign = await getDataSts(apduSignature);
+									if (resSign.sw === 0x9000) {
+										signFlag = false;
+										// continue
+									} else {
+										// delay 1.5 seconds and retry
+										await new Promise((r) => setTimeout(r, 1500));
+									}
+								}
+
+								const signatureSts = resSign!.dataRaw;
 								// convert signature to base64
 								const signatureStsBase64 = Buffer.from(signatureSts).toString('base64');
 
