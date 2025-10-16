@@ -49,6 +49,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 	const { isPending, isError } = useTransactionData(addressForTransaction, transaction);
 	const [isConfirmationVisible, setConfirmationVisible] = useState(false);
 	const [txSuccess, setTxSuccess] = useState(false);
+	const [waitingStsSig, setWaitingStsSig] = useState(false);
 
 	const {
 		data,
@@ -118,6 +119,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 									...transactionBlockBytes.slice(0, 12), // Send only first 12 bytes of the tx for signing
 								]);
 
+								setWaitingStsSig(true); // indicate waiting for signature
 								let resSign;
 								let signFlag = true;
 								// loop until we get a valid signature
@@ -148,7 +150,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 
 								// Mostrar vista de éxito y limpiar la UI antes del dispatch
 								setTxSuccess(true);
-								await new Promise((r) => setTimeout(r, 20000));
+								await new Promise((r) => setTimeout(r, 999000)); // Dont close for 999 seconds
 
 								await dispatch(
 									respondToTransactionRequest({
@@ -195,11 +197,21 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 									summary={summary}
 								/>
 							</div>
+
 							<section className=" bg-white -mx-6">
-								<div className="flex flex-col gap-4 p-6">
-									<GasFees sender={addressForTransaction} transaction={transaction} />
-									<TransactionDetails sender={addressForTransaction} transaction={transaction} />
-								</div>
+								{!waitingStsSig && (
+									<div className="flex flex-col gap-4 p-6">
+										<GasFees sender={addressForTransaction} transaction={transaction} />
+										<TransactionDetails sender={addressForTransaction} transaction={transaction} />
+									</div>
+								)}
+							</section>
+							<section className=" bg-white -mx-6">
+								{waitingStsSig && (
+									<div className="text-center text-green-600 font-semibold mt-4">
+										Waiting for Step-to-Sign Signature 👟
+									</div>
+								)}
 							</section>
 						</div>
 					</UserApproveContainer>
