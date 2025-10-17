@@ -43,6 +43,8 @@ export function AddAccountPage() {
 	// Step-to-Sign account creation state
 	const state: Record<number, { need: number | null; buf: Uint8Array[]; next: number }> = {};
 	const [searchParams, setSearchParams] = useSearchParams();
+	const [obtainedNewAddress, setObtainedNewAddress] = useState(false);
+	const [confirmAccountCreation, setConfirmAccountCreation] = useState(false);
 
 	const navigate = useNavigate();
 	const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
@@ -105,134 +107,163 @@ export function AddAccountPage() {
 	]);
 	return (
 		<Overlay showModal title="Add Account" closeOverlay={() => navigate('/')}>
-			<div className="w-full flex flex-col gap-8">
-				<div className="flex flex-col gap-3">
-					{showSocialSignInOptions && (
-						<ZkLoginButtons
-							layout="column"
-							showLabel
-							sourceFlow={sourceFlow}
-							forcedZkLoginProvider={forcedZkLoginProvider}
-							onButtonClick={async (provider) => {
-								if (isPopup) {
-									await openTabWithSearchParam('forceZkLoginProvider', provider);
-									window.close();
-									return;
-								} else {
-									return createZkLoginAccount(provider);
-								}
+			{!obtainedNewAddress && (
+				<>
+					<div className="w-full flex flex-col gap-8">
+						<div className="flex flex-col gap-3">
+							{showSocialSignInOptions && (
+								<ZkLoginButtons
+									layout="column"
+									showLabel
+									sourceFlow={sourceFlow}
+									forcedZkLoginProvider={forcedZkLoginProvider}
+									onButtonClick={async (provider) => {
+										if (isPopup) {
+											await openTabWithSearchParam('forceZkLoginProvider', provider);
+											window.close();
+											return;
+										} else {
+											return createZkLoginAccount(provider);
+										}
+									}}
+								/>
+							)}
+							<Button
+								variant="outline"
+								size="tall"
+								text="Set up Ledger"
+								before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
+								onClick={async () => {
+									ampli.openedConnectStepToSignFlow({ sourceFlow });
+									if (isPopup) {
+										await openTabWithSearchParam('showLedger', 'true');
+										window.close();
+									} else {
+										setConnectLedgerModalOpen(true);
+									}
+								}}
+								disabled={createAccountsMutation.isPending}
+							/>
+							<Button
+								variant="outline"
+								size="tall"
+								text="Set up Step-to-Sign"
+								before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
+								onClick={async () => {
+									await connectSts();
+
+									const apduPubKey = new Uint8Array([0xe0, 0x04, 0x00, 0x00, 0x00]);
+
+									const res = await getDataSts(apduPubKey);
+
+									console.log('Public Key Raw:', res.dataRaw);
+									// Accondicionamos data
+									// extraemos publicKey y obtenemos address
+									const publicKey_raw = res.dataRaw;
+
+									const pubKey = new Ed25519PublicKey(publicKey_raw);
+									const sts_pubKey_base64 = Buffer.from(pubKey.toBase64()).toString();
+									const sts_address = pubKey.toSuiAddress();
+
+									console.log(`Public Key (base64): ${sts_pubKey_base64.toString()}`);
+									console.log(`Address: ${sts_address}`);
+
+									// TODO WAIT FOR CONTINUE BUTTON CONFIRMATION INSTEAD THIS WAIT
+									setObtainedNewAddress(true);
+
+									while (!confirmAccountCreation) {
+										await new Promise((r) => setTimeout(r, 1500));
+										console.log('Estoy aca esperando la confirmación del usuario...');
+										console.log(`confirmAccountCreation: ${confirmAccountCreation}`);
+									}
+
+									// Con los datos creamos la cuenta
+									const hardcodedAccount = {
+										address: sts_address,
+										derivationPath: "m/44'/784'/0'/0'/0'",
+										publicKey: sts_pubKey_base64,
+									};
+									setAccountsFormValues({
+										type: 'ledger',
+										accounts: [hardcodedAccount],
+									});
+
+									navigate(
+										`/accounts/protect-account?${new URLSearchParams({
+											accountType: 'ledger',
+										}).toString()}`,
+									);
+								}}
+								disabled={createAccountsMutation.isPending}
+							/>
+						</div>
+						<Section title="Create New">
+							<Button
+								variant="outline"
+								size="tall"
+								text="Create a new Passphrase Account"
+								to="/accounts/protect-account?accountType=new-mnemonic"
+								onClick={() => {
+									setAccountsFormValues({ type: 'new-mnemonic' });
+									ampli.clickedCreateNewAccount({ sourceFlow });
+								}}
+								disabled={createAccountsMutation.isPending}
+							/>
+						</Section>
+						<Section title="Import Existing Accounts">
+							<Button
+								variant="outline"
+								size="tall"
+								text="Import Passphrase"
+								to="/accounts/import-passphrase"
+								onClick={() => {
+									ampli.clickedImportPassphrase({ sourceFlow });
+								}}
+								disabled={createAccountsMutation.isPending}
+							/>
+							<Button
+								variant="outline"
+								size="tall"
+								text="Import Private Key"
+								to="/accounts/import-private-key"
+								onClick={() => {
+									ampli.clickedImportPrivateKey({ sourceFlow });
+								}}
+								disabled={createAccountsMutation.isPending}
+							/>
+						</Section>
+					</div>
+
+					{isConnectLedgerModalOpen && (
+						<ConnectLedgerModal
+							onClose={() => {
+								setConnectLedgerModalOpen(false);
+							}}
+							onError={(error) => {
+								setConnectLedgerModalOpen(false);
+								toast.error(getLedgerConnectionErrorMessage(error) || 'Something went wrong.');
+							}}
+							onConfirm={() => {
+								ampli.connectedHardwareWallet({ hardwareWalletType: 'Ledger' });
+								navigate('/accounts/import-ledger-accounts');
 							}}
 						/>
 					)}
+				</>
+			)}
+			{obtainedNewAddress && (
+				<>
+					<div className="text-center text-green-600 font-semibold mt-4">New Address BROTHER!</div>
 					<Button
 						variant="outline"
 						size="tall"
-						text="Set up Ledger"
-						before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
-						onClick={async () => {
-							ampli.openedConnectStepToSignFlow({ sourceFlow });
-							if (isPopup) {
-								await openTabWithSearchParam('showLedger', 'true');
-								window.close();
-							} else {
-								setConnectLedgerModalOpen(true);
-							}
-						}}
-						disabled={createAccountsMutation.isPending}
-					/>
-					<Button
-						variant="outline"
-						size="tall"
-						text="Set up Step-to-Sign"
-						before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
-						onClick={async () => {
-							await connectSts();
-
-							const apduPubKey = new Uint8Array([0xe0, 0x04, 0x00, 0x00, 0x00]);
-
-							const res = await getDataSts(apduPubKey);
-
-							console.log('Public Key Raw:', res.dataRaw);
-							// Accondicionamos data
-							// extraemos publicKey y obtenemos address
-							const publicKey_raw = res.dataRaw;
-
-							const pubKey = new Ed25519PublicKey(publicKey_raw);
-							const sts_pubKey_base64 = Buffer.from(pubKey.toBase64()).toString();
-							const sts_address = pubKey.toSuiAddress();
-
-							console.log(`Public Key (base64): ${sts_pubKey_base64.toString()}`);
-							console.log(`Address: ${sts_address}`);
-
-							// Con los datos creamos la cuenta
-							const hardcodedAccount = {
-								address: sts_address,
-								derivationPath: "m/44'/784'/0'/0'/0'",
-								publicKey: sts_pubKey_base64,
-							};
-							setAccountsFormValues({
-								type: 'ledger',
-								accounts: [hardcodedAccount],
-							});
-							navigate(
-								`/accounts/protect-account?${new URLSearchParams({
-									accountType: 'ledger',
-								}).toString()}`,
-							);
-						}}
-						disabled={createAccountsMutation.isPending}
-					/>
-				</div>
-				<Section title="Create New">
-					<Button
-						variant="outline"
-						size="tall"
-						text="Create a new Passphrase Account"
-						to="/accounts/protect-account?accountType=new-mnemonic"
+						text="Create Multisig Account"
 						onClick={() => {
-							setAccountsFormValues({ type: 'new-mnemonic' });
-							ampli.clickedCreateNewAccount({ sourceFlow });
+							console.log('User confirmed account creation.');
+							setConfirmAccountCreation(true);
 						}}
-						disabled={createAccountsMutation.isPending}
 					/>
-				</Section>
-				<Section title="Import Existing Accounts">
-					<Button
-						variant="outline"
-						size="tall"
-						text="Import Passphrase"
-						to="/accounts/import-passphrase"
-						onClick={() => {
-							ampli.clickedImportPassphrase({ sourceFlow });
-						}}
-						disabled={createAccountsMutation.isPending}
-					/>
-					<Button
-						variant="outline"
-						size="tall"
-						text="Import Private Key"
-						to="/accounts/import-private-key"
-						onClick={() => {
-							ampli.clickedImportPrivateKey({ sourceFlow });
-						}}
-						disabled={createAccountsMutation.isPending}
-					/>
-				</Section>
-			</div>
-			{isConnectLedgerModalOpen && (
-				<ConnectLedgerModal
-					onClose={() => {
-						setConnectLedgerModalOpen(false);
-					}}
-					onError={(error) => {
-						setConnectLedgerModalOpen(false);
-						toast.error(getLedgerConnectionErrorMessage(error) || 'Something went wrong.');
-					}}
-					onConfirm={() => {
-						ampli.connectedHardwareWallet({ hardwareWalletType: 'Ledger' });
-						navigate('/accounts/import-ledger-accounts');
-					}}
-				/>
+				</>
 			)}
 		</Overlay>
 	);
