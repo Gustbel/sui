@@ -44,7 +44,15 @@ export function AddAccountPage() {
 	const state: Record<number, { need: number | null; buf: Uint8Array[]; next: number }> = {};
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [obtainedNewAddress, setObtainedNewAddress] = useState(false);
-	const [confirmAccountCreation, setConfirmAccountCreation] = useState(false);
+
+	const confirmResolverRef = useRef<null | (() => void)>(null);
+	const waitForConfirm = useCallback(() => {
+		// Si ya existiera un resolver pendiente, lo reemplazamos (último gana).
+		return new Promise<void>((resolve) => {
+			confirmResolverRef.current = resolve;
+		});
+	}, []);
+	// ---------------------------------------------------------------
 
 	const navigate = useNavigate();
 	const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
@@ -168,14 +176,11 @@ export function AddAccountPage() {
 									console.log(`Public Key (base64): ${sts_pubKey_base64.toString()}`);
 									console.log(`Address: ${sts_address}`);
 
-									// TODO WAIT FOR CONTINUE BUTTON CONFIRMATION INSTEAD THIS WAIT
+									// Mostramos UI de confirmación
 									setObtainedNewAddress(true);
 
-									while (!confirmAccountCreation) {
-										await new Promise((r) => setTimeout(r, 1500));
-										console.log('Estoy aca esperando la confirmación del usuario...');
-										console.log(`confirmAccountCreation: ${confirmAccountCreation}`);
-									}
+									// Esperamos la confirmación del usuario
+									await waitForConfirm();
 
 									// Con los datos creamos la cuenta
 									const hardcodedAccount = {
@@ -259,8 +264,9 @@ export function AddAccountPage() {
 						size="tall"
 						text="Create Multisig Account"
 						onClick={() => {
-							console.log('User confirmed account creation.');
-							setConfirmAccountCreation(true);
+							// Dispara la resolución de la espera y limpia el resolver
+							confirmResolverRef.current?.();
+							confirmResolverRef.current = null;
 						}}
 					/>
 				</>
