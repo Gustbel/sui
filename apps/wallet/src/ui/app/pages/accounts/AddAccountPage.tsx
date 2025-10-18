@@ -9,9 +9,9 @@ import {
 	type ZkLoginProvider,
 } from '_src/background/accounts/zklogin/providers';
 import { ampli } from '_src/shared/analytics/ampli';
-import { CreateStepToSignAccount } from '_src/step-to-sign/CreateStsAccount';
 import { LedgerLogo17 as LedgerLogo } from '@mysten/icons';
-import { Ed25519PublicKey } from '@mysten/sui/keypairs/ed25519';
+import { Ed25519Keypair, Ed25519PublicKey } from '@mysten/sui/keypairs/ed25519';
+import { MultiSigPublicKey } from '@mysten/sui/multisig/publickey';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -158,6 +158,13 @@ export function AddAccountPage() {
 								text="Set up Step-to-Sign"
 								before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
 								onClick={async () => {
+									// Local account address
+									const secretKey = 'suiprivkey1...';
+									const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+									// get publickey of local account (first multisig participant)
+									const pubKeyLocal = keypair.getPublicKey();
+
+									//Obtaining public key from Step-to-Sign device (second multisig participant)
 									await connectSts();
 
 									const apduPubKey = new Uint8Array([0xe0, 0x04, 0x00, 0x00, 0x00]);
@@ -169,12 +176,24 @@ export function AddAccountPage() {
 									// extraemos publicKey y obtenemos address
 									const publicKey_raw = res.dataRaw;
 
-									const pubKey = new Ed25519PublicKey(publicKey_raw);
-									const sts_pubKey_base64 = Buffer.from(pubKey.toBase64()).toString();
-									const sts_address = pubKey.toSuiAddress();
+									const pubKeySts = new Ed25519PublicKey(publicKey_raw);
 
-									console.log(`Public Key (base64): ${sts_pubKey_base64.toString()}`);
-									console.log(`Address: ${sts_address}`);
+									// Creating the multisig public key
+									const multisigPubKeySts = MultiSigPublicKey.fromPublicKeys({
+										threshold: 2,
+										publicKeys: [
+											{ publicKey: pubKeyLocal, weight: 1 },
+											{ publicKey: pubKeySts, weight: 1 },
+										],
+									});
+
+									const multisig_pubKey_base64 = Buffer.from(
+										multisigPubKeySts.toBase64(),
+									).toString();
+									const multisig_address = multisigPubKeySts.toSuiAddress();
+
+									console.log(`Public Key (base64): ${multisig_pubKey_base64.toString()}`);
+									console.log(`Address: ${multisig_address}`);
 
 									// Mostramos UI de confirmación
 									setObtainedNewAddress(true);
@@ -184,9 +203,9 @@ export function AddAccountPage() {
 
 									// Con los datos creamos la cuenta
 									const hardcodedAccount = {
-										address: sts_address,
+										address: multisig_address,
 										derivationPath: "m/44'/784'/0'/0'/0'",
-										publicKey: sts_pubKey_base64,
+										publicKey: multisig_pubKey_base64,
 									};
 									setAccountsFormValues({
 										type: 'ledger',
