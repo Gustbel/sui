@@ -16,6 +16,7 @@ import { TransactionSummary } from '_src/ui/app/shared/transaction-summary';
 import { getDataSts } from '_src/ui/app/step-to-sign/ble';
 import { useTransactionSummary } from '@mysten/core';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { MultiSigPublicKey } from '@mysten/sui/multisig/publickey';
 import { Transaction } from '@mysten/sui/transactions';
 import { toBase64 } from '@mysten/sui/utils';
 import { useMemo, useState } from 'react';
@@ -101,6 +102,13 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 								);
 								const transactionBlockBytesBase64 = toBase64(transactionBlockBytes);
 
+								// Getting First Signature form Local Account (first multisig participant)
+								const secretKey = 'suiprivkey1...';
+								const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+								const signatureLocalRes = await keypair.signTransaction(transactionBlockBytes);
+								const signatureLocalBase64 = signatureLocalRes.signature;
+
+								// Getting Second Signature form Sts Account (second multisig participant)
 								const apduMessageBytes = new Uint8Array([
 									...[0xe0, 0x67, 0x00, 0x00, 0x00],
 									...transactionBlockBytes,
@@ -133,10 +141,35 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 										await new Promise((r) => setTimeout(r, 1500));
 									}
 								}
-
+								console.log(`Esta recibiendo la Signature hasta el momento`);
 								const signatureSts = resSign!.dataRaw;
 								// convert signature to base64
 								const signatureStsBase64 = Buffer.from(signatureSts).toString('base64');
+
+								// Obtaining Multisig Public Key from signer (wallet account)
+								/*
+								const auxSignature = await signer.signMessage({
+									message: new TextEncoder().encode('pk'),
+								});
+								const publicKey = parseSerializedSignature(auxSignature.signature);
+								
+								const multisigPubKey = new MultiSigPublicKey(publicKey.publicKey!);
+								*/
+
+								const pubKeyBase64 =
+									'AgCnf6XMPEWGt7TEPYtsB4c+tXD4LsEGLFumoVuglP+PCgEAU+GKHSRYMXfRaqxbJM0bzashH4Jx/in9XW90hs0fdXEBAgA=';
+								const multisigPubKey = new MultiSigPublicKey(pubKeyBase64);
+
+								console.log(`Esta generando calculo que bien la multisigPk`);
+								console.log(`Multisig Public Key: ${multisigPubKey.toBase64()}`);
+
+								const multisigSignatureSerialized = multisigPubKey.combinePartialSignatures([
+									signatureLocalBase64,
+									signatureStsBase64,
+								]);
+
+								console.log(`Esta generando calculo que bien la multisig signature`);
+								console.log(`Multisig Public Key: ${multisigPubKey.toBase64()}`);
 
 								/*
 								//Generating Signature locally - (for debugging purposes)
@@ -146,11 +179,10 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 								const signBase64 = signRes.signature;
 								*/
 
-								const mySignature = signatureStsBase64;
+								const mySignature = multisigSignatureSerialized;
 
 								// Mostrar vista de éxito y limpiar la UI antes del dispatch
 								setTxSuccess(true);
-								await new Promise((r) => setTimeout(r, 999000)); // Dont close for 999 seconds
 
 								await dispatch(
 									respondToTransactionRequest({
@@ -162,6 +194,8 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 										transactionBlockBytes: transactionBlockBytesBase64,
 									}),
 								);
+
+								//await new Promise((r) => setTimeout(r, 999000)); // Dont close for 999 seconds
 							} else {
 								await dispatch(
 									respondToTransactionRequest({
