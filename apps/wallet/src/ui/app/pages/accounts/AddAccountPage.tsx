@@ -10,6 +10,7 @@ import {
 } from '_src/background/accounts/zklogin/providers';
 import { ampli } from '_src/shared/analytics/ampli';
 import { LedgerLogo17 as LedgerLogo } from '@mysten/icons';
+import { SvgLedgerLogo17 } from '@mysten/icons/src/LedgerLogo17';
 import { Ed25519Keypair, Ed25519PublicKey } from '@mysten/sui/keypairs/ed25519';
 import { MultiSigPublicKey } from '@mysten/sui/multisig/publickey';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -147,7 +148,7 @@ export function AddAccountPage() {
 								variant="outline"
 								size="tall"
 								text="Set up Ledger"
-								before={<LedgerLogo className="text-gray-90 w-4 h-4" />}
+								before={<SvgLedgerLogo17 className="text-gray-90 w-4 h-4" />}
 								onClick={async () => {
 									ampli.openedConnectStepToSignFlow({ sourceFlow });
 									if (isPopup) {
@@ -167,6 +168,7 @@ export function AddAccountPage() {
 								onClick={async () => {
 									// Local account address
 									const secretKey = 'suiprivkey1...';
+
 									const keypair = Ed25519Keypair.fromSecretKey(secretKey);
 									// get publickey of local account (first multisig participant)
 									const pubKeyLocal = keypair.getPublicKey();
