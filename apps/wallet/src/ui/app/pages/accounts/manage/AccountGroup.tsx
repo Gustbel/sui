@@ -34,7 +34,7 @@ const accountTypeToLabel: Record<AccountType, string> = {
 	'mnemonic-derived': 'Passphrase Derived',
 	qredo: 'Qredo',
 	imported: 'Imported',
-	ledger: 'Ledger',
+	ledger: 'Step-to-Sign',
 	zkLogin: 'zkLogin',
 };
 

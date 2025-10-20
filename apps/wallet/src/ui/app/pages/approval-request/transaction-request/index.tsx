@@ -104,6 +104,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
 
 								// Getting First Signature form Local Account (first multisig participant)
 								const secretKey = 'suiprivkey1...';
+
 								const keypair = Ed25519Keypair.fromSecretKey(secretKey);
 								const signatureLocalRes = await keypair.signTransaction(transactionBlockBytes);
 								const signatureLocalBase64 = signatureLocalRes.signature;

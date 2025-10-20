@@ -20,6 +20,7 @@ import Browser from 'webextension-polyfill';
 import { useAccountsFormContext } from '../../components/accounts/AccountsFormContext';
 import { ZkLoginButtons } from '../../components/accounts/ZkLoginButtons';
 import { ConnectLedgerModal } from '../../components/ledger/ConnectLedgerModal';
+import { SummaryCard } from '../../components/SummaryCard';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector } from '../../hooks';
 import { useCountAccountsByType } from '../../hooks/useCountAccountByType';
@@ -44,6 +45,12 @@ export function AddAccountPage() {
 	const state: Record<number, { need: number | null; buf: Uint8Array[]; next: number }> = {};
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [obtainedNewAddress, setObtainedNewAddress] = useState(false);
+
+	// Addresses
+	const [stsAddress, setStsAddress] = useState<string | null>(null);
+	const [localAddress, setLocalAddress] = useState<string | null>(null);
+	const [localSecretKey, setLocalSecretKey] = useState<string | null>(null);
+	const [multisigAddress, setMultisigAddress] = useState<string | null>(null);
 
 	const confirmResolverRef = useRef<null | (() => void)>(null);
 	const waitForConfirm = useCallback(() => {
@@ -114,7 +121,7 @@ export function AddAccountPage() {
 		isAccountsCountLoading,
 	]);
 	return (
-		<Overlay showModal title="Add Account" closeOverlay={() => navigate('/')}>
+		<Overlay showModal title="Add Step-to-Sign Multisig Account" closeOverlay={() => navigate('/')}>
 			{!obtainedNewAddress && (
 				<>
 					<div className="w-full flex flex-col gap-8">
@@ -163,6 +170,8 @@ export function AddAccountPage() {
 									const keypair = Ed25519Keypair.fromSecretKey(secretKey);
 									// get publickey of local account (first multisig participant)
 									const pubKeyLocal = keypair.getPublicKey();
+									setLocalAddress(pubKeyLocal.toSuiAddress());
+									setLocalSecretKey(secretKey);
 
 									//Obtaining public key from Step-to-Sign device (second multisig participant)
 									await connectSts();
@@ -177,6 +186,7 @@ export function AddAccountPage() {
 									const publicKey_raw = res.dataRaw;
 
 									const pubKeySts = new Ed25519PublicKey(publicKey_raw);
+									setStsAddress(pubKeySts.toSuiAddress());
 
 									// Creating the multisig public key
 									const multisigPubKeySts = MultiSigPublicKey.fromPublicKeys({
@@ -186,6 +196,8 @@ export function AddAccountPage() {
 											{ publicKey: pubKeySts, weight: 1 },
 										],
 									});
+
+									setMultisigAddress(multisigPubKeySts.toSuiAddress());
 
 									const multisig_pubKey_base64 = Buffer.from(
 										multisigPubKeySts.toBase64(),
@@ -277,17 +289,56 @@ export function AddAccountPage() {
 			)}
 			{obtainedNewAddress && (
 				<>
-					<div className="text-center text-green-600 font-semibold mt-4">New Address BROTHER!</div>
-					<Button
-						variant="outline"
-						size="tall"
-						text="Create Multisig Account"
-						onClick={() => {
-							// Dispara la resolución de la espera y limpia el resolver
-							confirmResolverRef.current?.();
-							confirmResolverRef.current = null;
-						}}
-					/>
+					<SummaryCard
+						header="First Multisig Participant 👟"
+						body={
+							<>
+								<div className="text-center text-green-600 font-semibold text-sm">
+									👟 Step-to-Sign Device Address:
+								</div>
+								<div className="text-center text-green-600 text-[12px]">{stsAddress}</div>
+							</>
+						}
+					></SummaryCard>
+					<SummaryCard
+						header="Second Multisig Participant 📀"
+						body={
+							<>
+								<div className="text-center text-green-600 font-semibold text-sm">
+									📀 Local Account Address:
+								</div>
+								<div className="text-center text-green-600 text-[12px]">{localAddress}</div>
+								<div className="text-center text-green-600 font-semibold text-sm mt-4">
+									Local Account PrivateKey/SecretKey:
+								</div>
+								<div className="text-center text-green-600 text-[12px]">{localSecretKey}</div>
+							</>
+						}
+					></SummaryCard>
+					<SummaryCard
+						header="New Multisig Account 🔑🔑"
+						body={
+							<>
+								<div className="text-center text-green-600 font-semibold text-sm">
+									🔑🔑 New Multisig Account Address:
+								</div>
+								<div className="text-center text-green-600 text-[12px]">{multisigAddress}</div>
+							</>
+						}
+					></SummaryCard>
+
+					<div style={{ marginTop: '16px' }}>
+						<Button
+							variant="outline"
+							size="tall"
+							text="Create Multisig Account"
+							onClick={() => {
+								// Dispara la resolución de la espera y limpia el resolver
+								confirmResolverRef.current?.();
+								confirmResolverRef.current = null;
+							}}
+						/>
+					</div>
 				</>
 			)}
 		</Overlay>
@@ -312,35 +363,4 @@ function Section({ title, children }: SectionProps) {
 			{children}
 		</section>
 	);
-}
-
-function tryExtractDataFromNotify(d: Uint8Array): Uint8Array | null {
-	if (d.length < 4) return null;
-
-	// Frame: [tag, seq, lenHi, lenLo, ...payload]
-	const total = (d[2] << 8) | d[3];
-	if (4 + total > d.length) return null;
-	let full = d.subarray(4, 4 + total);
-
-	// Quitar SW (0x9000 / 0x6xxx)
-	if (full.length >= 2) {
-		const sw = (full[full.length - 2] << 8) | full[full.length - 1];
-		if (sw === 0x9000 || (sw & 0xf000) === 0x6000) {
-			full = full.subarray(0, full.length - 2);
-		}
-	}
-
-	// Layout Ledger-like: [nameLen][name][stringLen][string][flagsLen?][flags?]
-	let i = 0;
-	if (i >= full.length) return null;
-	const nameLen = full[i++];
-	if (i + nameLen > full.length) return null;
-	i += nameLen; // skip name
-
-	if (i >= full.length) return null;
-	const dataLen = full[i++];
-	if (dataLen <= 0 || i + dataLen > full.length) return null;
-	const dataBytes = full.subarray(i, i + dataLen);
-
-	return dataBytes || null;
 }
